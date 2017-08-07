@@ -23,9 +23,6 @@
 #include <Adafruit_ADS1015.h>
 
 #include "WiFiManager.h"
-const int DIR = 7;
-const int STEP = 6;
-
 Adafruit_ADS1115 ads;
 #define MOTOR_STEPS 200
 
@@ -43,9 +40,13 @@ Adafruit_ADS1115 ads;
 // microstep control for DRV8825
 // same pinout as A4988, different pin names, supports 32 microsteps
 //
-#define MODE0 11
-#define MODE1 10
-#define MODE2 9
+//
+#define MODE0 27
+#define MODE1 26
+#define MODE2 25
+const int DIR = 32;
+const int STEP = 33;
+
 
 DRV8825 stepper(MOTOR_STEPS, DIR, STEP, MODE0, MODE1, MODE2);
 WiFiManager wifi;
@@ -65,8 +66,8 @@ void setup() {
   Serial.println("ESP32 setup ready..");
   Serial.println("Getting single-ended readings from AIN0..3");
   Serial.println("ADC Range: +/- 6.144V (1 bit = 3mV/ADS1015, 0.1875mV/ADS1115)");
-  //ads.setGain(GAIN_SIXTEEN);    // 16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV
-  //ads.begin();
+  ads.setGain(GAIN_SIXTEEN);    // 16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV
+  ads.begin();
   wifi.init();  
 }
 
@@ -85,17 +86,19 @@ void motor_move(void) {
     delay(2000);
     rotate = -rotate;
   }
+  /*
   delay(2000);
   Serial.println("servo rotate -360..");
   stepper.rotate(-360);
   delay(2000);
+  */
 }
 
 void loop(void) {
   if(wifi.isWifiEnable)
       ArduinoOTA.handle();
   delay(10);
-  //ads_read();
+  ads_read();
   motor_move();
 
 }
