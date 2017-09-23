@@ -22,10 +22,14 @@
 #include <Arduino.h>
 #include <Adafruit_ADS1015.h>
 
+#include <time.h>
+#include <ctime>
+
 #include "WiFiManager.h"
 Adafruit_ADS1115 ads;
 #define MOTOR_STEPS 200
 
+time_t now_time;
 // microstep control for DRV8834
 //#define M0 2
 //#define M1 3
@@ -55,6 +59,12 @@ int rotate = 360;
 float voltage = 0.0;
 int16_t adc0;
 
+ // ads.setGain(GAIN_TWOTHIRDS);  // 2/3x gain +/- 6.144V  1 bit = 3mV      0.1875mV (default)
+  // ads.setGain(GAIN_ONE);        // 1x gain   +/- 4.096V  1 bit = 2mV      0.125mV
+  // ads.setGain(GAIN_TWO);        // 2x gain   +/- 2.048V  1 bit = 1mV      0.0625mV
+  // ads.setGain(GAIN_FOUR);       // 4x gain   +/- 1.024V  1 bit = 0.5mV    0.03125mV
+  // ads.setGain(GAIN_EIGHT);      // 8x gain   +/- 0.512V  1 bit = 0.25mV   0.015625mV
+  // ads.setGain(GAIN_SIXTEEN);    // 16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV
 void setup() {
   /*
    * Set target motor RPM.
@@ -66,16 +76,29 @@ void setup() {
   Serial.println("ESP32 setup ready..");
   Serial.println("Getting single-ended readings from AIN0..3");
   Serial.println("ADC Range: +/- 6.144V (1 bit = 3mV/ADS1015, 0.1875mV/ADS1115)");
-  ads.setGain(GAIN_SIXTEEN);    // 16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV
+  //ads.setGain(GAIN_SIXTEEN);    // 16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV
+  ads.setGain(GAIN_ONE);    // 16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV
   ads.begin();
-  wifi.init();  
+  //wifi.init();  
 }
 
 void ads_read(void){
   adc0 = ads.readADC_SingleEnded(0);
-  voltage = (adc0 * 0.0078125)/1000;
+  //voltage = (adc0 * 0.0078125)/1000;
+  voltage = (adc0 * 0.125 )/1000;
   Serial.print("AIN0: "); Serial.println(voltage,9);
   Serial.println(" ");
+}
+
+void loopGraph(){
+	time(&now_time);
+	Serial.println(now_time);
+
+/*time_t timeNow = time(nullptr);
+tm *dateTime = localtime(&timeNow);
+Serial.println(asctime(dateTime));*/
+
+
 }
 
 void motor_move(void) {
@@ -95,11 +118,12 @@ void motor_move(void) {
 }
 
 void loop(void) {
-  if(wifi.isWifiEnable)
-      ArduinoOTA.handle();
-  delay(10);
+  //if(wifi.isWifiEnable)
+  //    ArduinoOTA.handle();
+  //delay(10);
   ads_read();
-  motor_move();
+  loopGraph();
+  //motor_move();
 
 }
 
