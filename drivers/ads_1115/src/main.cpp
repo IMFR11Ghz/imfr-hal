@@ -65,12 +65,20 @@ int16_t adc0;
   // ads.setGain(GAIN_FOUR);       // 4x gain   +/- 1.024V  1 bit = 0.5mV    0.03125mV
   // ads.setGain(GAIN_EIGHT);      // 8x gain   +/- 0.512V  1 bit = 0.25mV   0.015625mV
   // ads.setGain(GAIN_SIXTEEN);    // 16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV
+double ads_read(void){
+  int adc0 = ads.readADC_SingleEnded(0);
+  //voltage = (adc0 * 0.0078125)/1000;
+  double voltage = (adc0 * 0.125 )/1000.0;
+  return voltage;
+}
+
+time_t getTime(void){
+   time_t cur_time;
+   time(&cur_time);
+   return cur_time;
+}
+
 void setup() {
-  /*
-   * Set target motor RPM.
-   */
-  stepper.setRPM(100);
-  stepper.setMicrostep(2); // micro step config
 
   Serial.begin(115200);
   Serial.println("ESP32 setup ready..");
@@ -79,52 +87,21 @@ void setup() {
   //ads.setGain(GAIN_SIXTEEN);    // 16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV
   ads.setGain(GAIN_ONE);    // 16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV
   ads.begin();
-  //wifi.init();  
+  now_time = getTime();
 }
 
-void ads_read(void){
-  adc0 = ads.readADC_SingleEnded(0);
-  //voltage = (adc0 * 0.0078125)/1000;
-  voltage = (adc0 * 0.125 )/1000;
-  Serial.print("AIN0: "); Serial.println(voltage,9);
-  Serial.println(" ");
+void loopGraph(void){
+    if(now_time + 1 <= getTime()){
+	now_time =getTime();
+  	double v= ads_read();
+  	Serial.print(now_time); Serial.print(","); Serial.println(v,9);
+   }
 }
 
-void loopGraph(){
-	time(&now_time);
-	Serial.println(now_time);
-
-/*time_t timeNow = time(nullptr);
-tm *dateTime = localtime(&timeNow);
-Serial.println(asctime(dateTime));*/
-
-
-}
-
-void motor_move(void) {
-  Serial.println("servo rotate  360..");
-  stepper.rotate(rotate);
-  if (stop++ == 10) {
-    stop = 0;
-    delay(2000);
-    rotate = -rotate;
-  }
-  /*
-  delay(2000);
-  Serial.println("servo rotate -360..");
-  stepper.rotate(-360);
-  delay(2000);
-  */
-}
 
 void loop(void) {
-  //if(wifi.isWifiEnable)
-  //    ArduinoOTA.handle();
-  //delay(10);
-  ads_read();
   loopGraph();
-  //motor_move();
-
 }
+
 
 
