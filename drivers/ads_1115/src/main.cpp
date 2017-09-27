@@ -25,7 +25,6 @@
 #include <time.h>
 #include <ctime>
 
-#include "WiFiManager.h"
 Adafruit_ADS1115 ads;
 #define MOTOR_STEPS 200
 
@@ -52,8 +51,6 @@ const int DIR = 32;
 const int STEP = 33;
 
 
-DRV8825 stepper(MOTOR_STEPS, DIR, STEP, MODE0, MODE1, MODE2);
-WiFiManager wifi;
 int stop = 0;
 int rotate = 360;
 float voltage = 0.0;
@@ -94,7 +91,11 @@ void loopGraph(void){
     if(now_time + 1 <= getTime()){
 	now_time =getTime();
   	double v= ads_read();
-  	Serial.print(now_time); Serial.print(","); Serial.println(v,9);
+	// radio csv format
+  	//Serial.print(now_time); Serial.print(","); Serial.println(v,9);
+	// gnu_plot format
+  	Serial.print(now_time); Serial.print(" "); Serial.println(v,9);
+
    }
 }
 

@@ -13,6 +13,8 @@
 #include <ArduinoOTA.h>
 
 #define MAX_RECONNECT 1
+const char* WIFI_SSID= "";
+const char* WIFI_PASS= "";
 
 class WiFiManager
 {
