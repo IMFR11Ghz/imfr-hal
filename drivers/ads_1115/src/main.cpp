@@ -62,10 +62,20 @@ int16_t adc0;
   // ads.setGain(GAIN_FOUR);       // 4x gain   +/- 1.024V  1 bit = 0.5mV    0.03125mV
   // ads.setGain(GAIN_EIGHT);      // 8x gain   +/- 0.512V  1 bit = 0.25mV   0.015625mV
   // ads.setGain(GAIN_SIXTEEN);    // 16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV
+  //
+  //
+
+//double accuracy= 0.1875; //G2/3
+const double accuracy= 0.125; //G2/3
+//const double accuracy= 0.0625; //G1
+//const double accuracy= 0.03125; //G2
+//const double accuracy= 0.015625; //G4
+//const double accuracy= 0.0078125;//G16
+const double sampling_rate = 5.0;
+
 double ads_read(void){
   int adc0 = ads.readADC_SingleEnded(0);
-  //voltage = (adc0 * 0.0078125)/1000;
-  double voltage = (adc0 * 0.125 )/1000.0;
+  double voltage = (adc0 * accuracy )/1000.0;
   return voltage;
 }
 
@@ -74,7 +84,7 @@ time_t getTime(void){
    time(&cur_time);
    return cur_time;
 }
-
+// idea 1, multiply time lets say: get time increments in 1, so if is multiply per 10 that will sample faster 
 void setup() {
 
   Serial.begin(115200);
@@ -82,19 +92,20 @@ void setup() {
   Serial.println("Getting single-ended readings from AIN0..3");
   Serial.println("ADC Range: +/- 6.144V (1 bit = 3mV/ADS1015, 0.1875mV/ADS1115)");
   //ads.setGain(GAIN_SIXTEEN);    // 16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV
+  //ads.setGain(GAIN_FOUR);    // 16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV
   ads.setGain(GAIN_ONE);    // 16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV
   ads.begin();
   now_time = getTime();
 }
 
 void loopGraph(void){
-    if(now_time + 1 <= getTime()){
+    if(now_time + 1 <= ( getTime() * sampling_rate )){
 	now_time =getTime();
   	double v= ads_read();
 	// radio csv format
   	//Serial.print(now_time); Serial.print(","); Serial.println(v,9);
 	// gnu_plot format
-  	Serial.print(now_time); Serial.print(" "); Serial.println(v,9);
+  	Serial.print(now_time *1.0 / sampling_rate); Serial.print(" "); Serial.println(v,9);
 
    }
 }
