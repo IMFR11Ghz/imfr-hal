@@ -38,14 +38,6 @@ int rotate = 360;
 float voltage = 0.0;
 int16_t adc0;
 
- // ads.setGain(GAIN_TWOTHIRDS);  // 2/3x gain +/- 6.144V  1 bit = 3mV      0.1875mV (default)
-  // ads.setGain(GAIN_ONE);        // 1x gain   +/- 4.096V  1 bit = 2mV      0.125mV
-  // ads.setGain(GAIN_TWO);        // 2x gain   +/- 2.048V  1 bit = 1mV      0.0625mV
-  // ads.setGain(GAIN_FOUR);       // 4x gain   +/- 1.024V  1 bit = 0.5mV    0.03125mV
-  // ads.setGain(GAIN_EIGHT);      // 8x gain   +/- 0.512V  1 bit = 0.25mV   0.015625mV
-  // ads.setGain(GAIN_SIXTEEN);    // 16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV
-  //
-  //
 const double accuG23= 0.1875; //G2/3
 const double accuG1= 0.125; //G1
 const double accuG2= 0.0625; //G2
@@ -53,13 +45,17 @@ const double accuG4= 0.03125; //G4
 const double accuG8= 0.015625; //G8
 const double accuG16= 0.0078125;//G16
 
-//
 const double sampling_rate = 5.0;
-long delta50 = 20;
-long delta10 = 100;
-long delta500 = 2;
-long delta20 = 50;
-//CONFIG GAIN FOR ADC
+const long DELTA50 = 20;
+const long DELTA10 = 100;
+const long DELTA1 = 1000;
+const long DELTA2 = 2000;
+const long DELTA500 = 2;
+const long DELTA20 = 50;
+
+//CONFIG gain, accuracy and sampling delta
+
+long delta=DELTA20;
 const int gain=1;
 double accuracy= accuG1;
 
@@ -124,12 +120,12 @@ void loopGraph(void){
 }
 
 void loopGraphAcu(void){
-    if(now_millis + delta20 <=  millis() ){
+
+    if(now_millis + delta <=  millis() ){
   	double v= ads_read();
 	double time_secs = getTime() + (now_millis / 1000.0);
   	Serial.print(time_secs); Serial.print(" "); Serial.println(v,9);
 	now_millis = millis();
-
    }
 }
 
