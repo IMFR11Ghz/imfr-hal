@@ -34,7 +34,7 @@ while(1)
   exit 1
     if ($TO_FILE);
 
-  sleep 0.2
+  sleep 0.1
 }
 
 close(PLOT);

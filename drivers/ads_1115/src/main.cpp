@@ -123,7 +123,7 @@ void loopGraphAcu(void){
 
     if(now_millis + delta <=  millis() ){
   	double v= ads_read();
-	double time_secs = getTime() + (now_millis / 1000.0);
+	double time_secs = (now_millis / 1000.0);
   	Serial.print(time_secs); Serial.print(" "); Serial.println(v,9);
 	now_millis = millis();
    }
