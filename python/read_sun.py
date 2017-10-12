@@ -1,7 +1,11 @@
 import serial
-import sys
-import socket
-import threading
+
+import socketserver, subprocess, sys
+from threading import Thread
+from pprint import pprint
+import json
+
+
 
 def read_serial():
     ser = serial.Serial('/dev/ttyUSB0', 115200 ,timeout=1)
@@ -11,29 +15,33 @@ def read_serial():
             sun.write(data)
             sun.flush()
 
+my_unix_command = ['bc']
+HOST = '0.0.0.0'
+PORT = 9999
 
+class SingleTCPHandler(socketserver.BaseRequestHandler):
+    "One instance per connection.  Override handle(self) to customize action."
+    def handle(self):
+        # self.request is the client connection
+        data = self.request.recv(1024)  # clip input at 1Kb
+        text = data.decode('utf-8')
+        pprint(json.loads(text))
+        self.request.close()
 
-bind_ip = '0.0.0.0'
-bind_port = 9999
+class SimpleServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    # Ctrl-C will cleanly kill all spawned threads
+    daemon_threads = True
+    # much faster rebinding
+    allow_reuse_address = True
 
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.bind((bind_ip, bind_port))
-server.listen(5)  # max backlog of connections
+    def __init__(self, server_address, RequestHandlerClass):
+        socketserver.TCPServer.__init__(self, server_address, RequestHandlerClass)
 
-print('Listening on {}:{}'.format(bind_ip, bind_port))
+if __name__ == "__main__":
+    server = SimpleServer((HOST, PORT), SingleTCPHandler)
+    # terminate with Ctrl-C
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        sys.exit(0)
 
-
-def handle_client_connection(client_socket):
-    request = client_socket.recv(1024)
-    print('Received {}'.format(request))
-    client_socket.send('ACK!')
-    client_socket.close()
-
-while True:
-    client_sock, address = server.accept()
-    print('Accepted connection from {}:{}'.format(address[0], address[1]))
-    client_handler = threading.Thread(
-        target=handle_client_connection,
-        args=(client_sock,)  # without comma you'd get a... TypeError: handle_client_connection() argument after * must be a sequence, not _socketobject
-    )
-    client_handler.start()

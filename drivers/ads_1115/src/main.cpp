@@ -25,15 +25,22 @@
 #include <WiFi.h>
 #include <WiFiMulti.h>
 
-WiFiMulti WiFiMulti;
 #include <time.h>
 #include <ctime>
+#include <PubSubClient.h>
 
-const uint16_t port = 9999;
-const char * host = "192.168.0.6"; // ip or dns
+
+WiFiMulti WiFiMulti;
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+long lastMsg = 0;
+char msg[75];
+int value = 0;
+const uint16_t port = 6666;
+const char * host = "192.168.0.3"; // ip or dns
 
 // Use WiFiClient class to create TCP connections
-WiFiClient client;
 
 
 Adafruit_ADS1115 ads;
@@ -81,7 +88,16 @@ time_t getTime(void){
    time(&cur_time);
    return cur_time;
 }
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
 
+}
 void setup_wifi(void) {
     delay(10);
     // We start by connecting to a WiFi network
@@ -101,7 +117,25 @@ void setup_wifi(void) {
     Serial.println(WiFi.localIP());
     delay(500);
 }
-
+void reconnect() {
+  // Loop until we're reconnected
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    // Attempt to connect
+    if (client.connect("ESP8266Client")) {
+      Serial.println("connected");
+      // Once connected, publish an announcement...
+      client.publish("sun", "hello world");
+      // ... and resubscribe
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
+    }
+  }
+}
 void setup_tcpclient(void){
     if (!client.connect(host, port)) {
         Serial.println("connection failed");
@@ -119,7 +153,6 @@ void setup() {
   Serial.begin(115200);
   Serial.println("ESP32 setup ready..");
   setup_wifi();
-  setup_tcpclient();
   switch (gain){
 	case 0:
              accuracy=accuG23;
@@ -168,15 +201,23 @@ void loopGraphAcu(void){
 
     if(now_millis + delta <=  millis() ){
   	double v= ads_read();
-	double time_secs = (now_millis / 1000.0);
+	double time_secs = (now_millis / 1000.0); 
+	snprintf (msg, 75, ".2%f .2%f", time_secs,v);
+
   	Serial.print(time_secs); Serial.print(" "); Serial.println(v,9);
-  	client.print(time_secs); client.print(" "); client.println(v);
+  	client.publish("sun", msg);
 	now_millis = millis();
    }
+//client.stop();
 }
 
 
 void loop(void) {
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+
   loopGraphAcu();
 }
 
