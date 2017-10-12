@@ -22,8 +22,19 @@
 #include <Arduino.h>
 #include <Adafruit_ADS1015.h>
 
+#include <WiFi.h>
+#include <WiFiMulti.h>
+
+WiFiMulti WiFiMulti;
 #include <time.h>
 #include <ctime>
+
+const uint16_t port = 9999;
+const char * host = "192.168.0.6"; // ip or dns
+
+// Use WiFiClient class to create TCP connections
+WiFiClient client;
+
 
 Adafruit_ADS1115 ads;
 
@@ -71,10 +82,44 @@ time_t getTime(void){
    return cur_time;
 }
 
+void setup_wifi(void) {
+    delay(10);
+    // We start by connecting to a WiFi network
+    WiFiMulti.addAP("Home47", "#1018405230#");
+    Serial.println();
+    Serial.print("Wait for WiFi... ");
+    Serial.println();
+
+    while(WiFiMulti.run() != WL_CONNECTED) {
+        Serial.print(".");
+        delay(500);
+    }
+
+    Serial.println("");
+    Serial.println("WiFi connected");
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP());
+    delay(500);
+}
+
+void setup_tcpclient(void){
+    if (!client.connect(host, port)) {
+        Serial.println("connection failed");
+        Serial.println("wait 5 sec...");
+        delay(5000);
+        return;
+    }
+    // This will send the request to the server
+    //client.print("Send this data to server");
+
+}
+
 void setup() {
 
   Serial.begin(115200);
   Serial.println("ESP32 setup ready..");
+  setup_wifi();
+  setup_tcpclient();
   switch (gain){
 	case 0:
              accuracy=accuG23;
@@ -125,6 +170,7 @@ void loopGraphAcu(void){
   	double v= ads_read();
 	double time_secs = (now_millis / 1000.0);
   	Serial.print(time_secs); Serial.print(" "); Serial.println(v,9);
+  	client.print(time_secs); client.print(" "); client.println(v);
 	now_millis = millis();
    }
 }
