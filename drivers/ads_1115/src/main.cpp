@@ -39,7 +39,8 @@ char msg[75];
 int value = 0;
 const uint16_t port = 6666;
 const char * host = "192.168.0.3"; // ip or dns
-
+const char* mqtt_server2 = "192.168.0.6";
+const char* mqtt_server = "192.168.43.186";
 // Use WiFiClient class to create TCP connections
 
 
@@ -73,10 +74,11 @@ const long DELTA20 = 50;
 
 //CONFIG gain, accuracy and sampling delta
 
-long delta=DELTA20;
+long delta=DELTA1;
 const int gain=1;
 double accuracy= accuG1;
-
+double average_voltage =0;
+int nsamples =0;
 double ads_read(void){
   int adc0 = ads.readADC_SingleEnded(0);
   double voltage = (adc0 * accuracy )/1000.0;
@@ -101,7 +103,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 void setup_wifi(void) {
     delay(10);
     // We start by connecting to a WiFi network
-    WiFiMulti.addAP("Home47", "#1018405230#");
+    WiFiMulti.addAP("T47", "12345678");
     Serial.println();
     Serial.print("Wait for WiFi... ");
     Serial.println();
@@ -125,7 +127,7 @@ void reconnect() {
     if (client.connect("ESP8266Client")) {
       Serial.println("connected");
       // Once connected, publish an announcement...
-      client.publish("sun", "hello world");
+      client.publish("sun", "heartbeat");
       // ... and resubscribe
     } else {
       Serial.print("failed, rc=");
@@ -136,23 +138,14 @@ void reconnect() {
     }
   }
 }
-void setup_tcpclient(void){
-    if (!client.connect(host, port)) {
-        Serial.println("connection failed");
-        Serial.println("wait 5 sec...");
-        delay(5000);
-        return;
-    }
-    // This will send the request to the server
-    //client.print("Send this data to server");
-
-}
 
 void setup() {
 
   Serial.begin(115200);
-  Serial.println("ESP32 setup ready..");
-  setup_wifi();
+  //client.setServer(mqtt_server, 1883);
+  //client.setCallback(callback);
+  //setup_wifi();
+
   switch (gain){
 	case 0:
              accuracy=accuG23;
@@ -197,26 +190,42 @@ void loopGraph(void){
    }
 }
 
-void loopGraphAcu(void){
 
-    if(now_millis + delta <=  millis() ){
-  	double v= ads_read();
+void loopGraphAcu(void){
+    long cur_millis = millis();
+    double cur_v= ads_read();
+    if(now_millis + delta <=  cur_millis ){
 	double time_secs = (now_millis / 1000.0); 
-	snprintf (msg, 75, ".2%f .2%f", time_secs,v);
+	double v = 0.0;
+
+        if( average_voltage > 0 && nsamples > 0 ) 
+	     v = average_voltage * 1.0 / nsamples;
+	else 
+	     v = cur_v; 
+
+	average_voltage = v;
+	nsamples = 0;
 
   	Serial.print(time_secs); Serial.print(" "); Serial.println(v,9);
-  	client.publish("sun", msg);
+
+	//snprintf (msg, 75, ".2%f .2%f", time_secs,v);
+  	//client.publish("sun", msg);
+	
 	now_millis = millis();
+   }
+   else{
+        average_voltage += cur_v;	
+	nsamples += 1;
    }
 //client.stop();
 }
 
 
 void loop(void) {
-  if (!client.connected()) {
-    reconnect();
-  }
-  client.loop();
+  //if (!client.connected()) {
+  //  reconnect();
+  //}
+  //client.loop();
 
   loopGraphAcu();
 }
