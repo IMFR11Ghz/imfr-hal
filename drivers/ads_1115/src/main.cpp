@@ -32,6 +32,7 @@
 
 WiFiMulti WiFiMulti;
 WiFiClient espClient;
+WiFiServer server(80);
 PubSubClient client(espClient);
 
 long lastMsg = 0;
@@ -119,6 +120,14 @@ void setup_wifi(void) {
     Serial.println(WiFi.localIP());
     delay(500);
 }
+
+void setupSAP(void) {
+  WiFi.softAP(ssid, password);
+  Serial.println();
+  Serial.print("IP address: ");
+  Serial.println(WiFi.softAPIP());
+}
+
 void reconnect() {
   // Loop until we're reconnected
   while (!client.connected()) {
