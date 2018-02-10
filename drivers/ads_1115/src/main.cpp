@@ -11,7 +11,7 @@
 // ads.setGain(GAIN_FOUR);       // 4x gain   +/- 1.024V  1 bit = 0.5mV    0.03125mV
 // ads.setGain(GAIN_EIGHT);      // 8x gain   +/- 0.512V  1 bit = 0.25mV   0.015625mV
 // ads.setGain(GAIN_SIXTEEN);    // 16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV
-  
+
 
  */
 
@@ -27,12 +27,12 @@
 
 #include <time.h>
 #include <ctime>
-#include <PubSubClient.h>
+//#include <PubSubClient.h>
 
 
 WiFiMulti WiFiMulti;
 WiFiClient espClient;
-PubSubClient client(espClient);
+//PubSubClient client(espClient);
 
 long lastMsg = 0;
 char msg[75];
@@ -71,10 +71,10 @@ const long DELTA1 = 1000;
 const long DELTA2 = 2000;
 const long DELTA500 = 2;
 const long DELTA20 = 50;
+const long DELTA100 = 10;
+//CONFIG gain, accuracy and sazmpling delta
 
-//CONFIG gain, accuracy and sampling delta
-
-long delta=DELTA1;
+long delta=DELTA100;
 const int gain=1;
 double accuracy= accuG1;
 double average_voltage =0;
@@ -90,6 +90,7 @@ time_t getTime(void){
    time(&cur_time);
    return cur_time;
 }
+/*
 void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
   Serial.print(topic);
@@ -100,6 +101,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.println();
 
 }
+*/
 void setup_wifi(void) {
     delay(10);
     // We start by connecting to a WiFi network
@@ -119,6 +121,7 @@ void setup_wifi(void) {
     Serial.println(WiFi.localIP());
     delay(500);
 }
+/*
 void reconnect() {
   // Loop until we're reconnected
   while (!client.connected()) {
@@ -138,7 +141,7 @@ void reconnect() {
     }
   }
 }
-
+*/
 void setup() {
 
   Serial.begin(115200);
@@ -195,13 +198,13 @@ void loopGraphAcu(void){
     long cur_millis = millis();
     double cur_v= ads_read();
     if(now_millis + delta <=  cur_millis ){
-	double time_secs = (now_millis / 1000.0); 
+	double time_secs = (now_millis / 1000.0);
 	double v = 0.0;
 
-        if( average_voltage > 0 && nsamples > 0 ) 
+        if( average_voltage > 0 && nsamples > 0 )
 	     v = average_voltage * 1.0 / nsamples;
-	else 
-	     v = cur_v; 
+	else
+	     v = cur_v;
 
 	average_voltage = v;
 	nsamples = 0;
@@ -210,11 +213,11 @@ void loopGraphAcu(void){
 
 	//snprintf (msg, 75, ".2%f .2%f", time_secs,v);
   	//client.publish("sun", msg);
-	
+
 	now_millis = millis();
    }
    else{
-        average_voltage += cur_v;	
+        average_voltage += cur_v;
 	nsamples += 1;
    }
 //client.stop();
@@ -229,6 +232,3 @@ void loop(void) {
 
   loopGraphAcu();
 }
-
-
-
