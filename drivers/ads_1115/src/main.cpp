@@ -71,7 +71,7 @@ const long DELTA1 = 1000;
 const long DELTA2 = 2000;
 const long DELTA500 = 2;
 const long DELTA20 = 50;
-const long DELTA100 = 10;
+const long DELTA100 = 2;
 //CONFIG gain, accuracy and sazmpling delta
 
 long delta=DELTA100;
