@@ -75,12 +75,12 @@ const long DELTA50 = 20;
 const long DELTA10 = 100;
 const long DELTA1 = 1000;
 const long DELTA2 = 2000;
-const long DELTA500 = 2;
+const long DELTA_500 = 2;
 const long DELTA20 = 50;
-const long DELTA_200 = 5;
+const long DELTA_1000 = 0.5;
 //CONFIG gain, accuracy and sazmpling delta
 
-long delta=DELTA_200;
+long delta=DELTA_500;
 const int gain=1;
 double accuracy= accuG1;
 double average_voltage =0;
@@ -230,7 +230,7 @@ void samples_per_second(){
     long cur_millis = millis();
     if(now_s + 1000 <=  cur_millis ){
 	now_s = millis();
-  	Serial.print("samples per second "); Serial.println(ns);
+  	//Serial.print("samples per second "); Serial.println(ns);
 	ns = 0;
 	
    }
