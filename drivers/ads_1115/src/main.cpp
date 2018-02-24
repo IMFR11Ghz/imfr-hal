@@ -27,12 +27,17 @@
 
 #include <time.h>
 #include <ctime>
-//#include <PubSubClient.h>
+#include <PubSubClient.h>
+#include <ArduinoJson.h>
 
 
+
+// wifi related stuff 
 WiFiMulti WiFiMulti;
 WiFiClient espClient;
-//PubSubClient client(espClient);
+WiFiServer server(80);
+PubSubClient client(espClient);
+DynamicJsonBuffer jbuf;
 
 long lastMsg = 0;
 char msg[75];
@@ -48,6 +53,7 @@ Adafruit_ADS1115 ads;
 
 time_t now_time;
 long now_millis;
+long now_s;
 const int DIR = 32;
 const int STEP = 33;
 
@@ -71,14 +77,31 @@ const long DELTA1 = 1000;
 const long DELTA2 = 2000;
 const long DELTA500 = 2;
 const long DELTA20 = 50;
-const long DELTA100 = 2;
+const long DELTA_200 = 5;
 //CONFIG gain, accuracy and sazmpling delta
 
-long delta=DELTA100;
+long delta=DELTA_200;
 const int gain=1;
 double accuracy= accuG1;
 double average_voltage =0;
 int nsamples =0;
+int ns =0;
+double cur_v =0.0;
+bool wifi=false;
+
+void callback_mqtt(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+  const char*jb=(char *)payload;
+  JsonObject& root = jbuf.parseObject(jb);
+}
+
+
 double ads_read(void){
   int adc0 = ads.readADC_SingleEnded(0);
   double voltage = (adc0 * accuracy )/1000.0;
@@ -105,7 +128,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 void setup_wifi(void) {
     delay(10);
     // We start by connecting to a WiFi network
-    WiFiMulti.addAP("T47", "12345678");
+    WiFiMulti.addAP("radio", "12345678");
     Serial.println();
     Serial.print("Wait for WiFi... ");
     Serial.println();
@@ -121,7 +144,6 @@ void setup_wifi(void) {
     Serial.println(WiFi.localIP());
     delay(500);
 }
-/*
 void reconnect() {
   // Loop until we're reconnected
   while (!client.connected()) {
@@ -131,6 +153,8 @@ void reconnect() {
       Serial.println("connected");
       // Once connected, publish an announcement...
       client.publish("sun", "heartbeat");
+      client.subscribe("sun");
+
       // ... and resubscribe
     } else {
       Serial.print("failed, rc=");
@@ -141,7 +165,16 @@ void reconnect() {
     }
   }
 }
-*/
+
+
+void setup_socket_node(){
+     setup_wifi();
+     client.setServer(mqtt_server, 1883);
+     client.setCallback(callback_mqtt);
+}
+
+
+
 void setup() {
 
   Serial.begin(115200);
@@ -193,11 +226,19 @@ void loopGraph(void){
    }
 }
 
-
+void samples_per_second(){
+    long cur_millis = millis();
+    if(now_s + 1000 <=  cur_millis ){
+	now_s = millis();
+  	Serial.print("samples per second "); Serial.println(ns);
+	ns = 0;
+	
+   }
+}
 void loopGraphAcu(void){
     long cur_millis = millis();
-    double cur_v= ads_read();
     if(now_millis + delta <=  cur_millis ){
+        cur_v= ads_read();
 	double time_secs = (now_millis / 1000.0);
 	double v = 0.0;
 
@@ -206,15 +247,15 @@ void loopGraphAcu(void){
 	else
 	     v = cur_v;
 
-	average_voltage = v;
-	nsamples = 0;
 
-  	Serial.print(time_secs); Serial.print(" "); Serial.println(v,9);
+  	Serial.print(time_secs); Serial.print(" ");  Serial.print(" ");  Serial.println(v,9);
+	average_voltage = v;
 
 	//snprintf (msg, 75, ".2%f .2%f", time_secs,v);
   	//client.publish("sun", msg);
 
 	now_millis = millis();
+	ns+=1;
    }
    else{
         average_voltage += cur_v;
@@ -229,6 +270,6 @@ void loop(void) {
   //  reconnect();
   //}
   //client.loop();
-
+  samples_per_second();
   loopGraphAcu();
 }
