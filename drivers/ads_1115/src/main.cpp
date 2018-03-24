@@ -20,7 +20,8 @@
 #include "DRV8825.h"
 #include "DRV8834.h"
 #include <Arduino.h>
-#include <Adafruit_ADS1015.h>
+
+#include <DFRobot_ADS1115.h>
 
 #include <WiFi.h>
 #include <WiFiMulti.h>
@@ -39,6 +40,7 @@ WiFiServer server(80);
 PubSubClient client(espClient);
 DynamicJsonBuffer jbuf;
 
+DFRobot_ADS1115 ads;
 long lastMsg = 0;
 char msg[75];
 int value = 0;
@@ -49,7 +51,7 @@ const char* mqtt_server = "192.168.43.186";
 // Use WiFiClient class to create TCP connections
 
 
-Adafruit_ADS1115 ads;
+//Adafruit_ADS1115 ads;
 
 time_t now_time;
 long now_millis;
@@ -80,8 +82,8 @@ const long DELTA20 = 50;
 const long DELTA_1000 = 0.5;
 //CONFIG gain, accuracy and sazmpling delta
 
-long delta=DELTA_500;
-const int gain=1;
+long delta=DELTA50;
+const int gain=2;
 double accuracy= accuG1;
 double average_voltage =0;
 int nsamples =0;
@@ -102,17 +104,6 @@ void callback_mqtt(char* topic, byte* payload, unsigned int length) {
 }
 
 
-double ads_read(void){
-  int adc0 = ads.readADC_SingleEnded(0);
-  double voltage = (adc0 * accuracy )/1000.0;
-  return voltage;
-}
-
-time_t getTime(void){
-   time_t cur_time;
-   time(&cur_time);
-   return cur_time;
-}
 /*
 void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
@@ -173,7 +164,53 @@ void setup_socket_node(){
      client.setCallback(callback_mqtt);
 }
 
+double ads_read(void){
+   if (ads.checkADS1115()){
+        int16_t adc0;
+	adc0 = ads.readVoltage(0);
+        double voltage = (adc0 * accuracy )/1000.0;
+        return voltage;
+   }
+   else{
+	return -1.1111;
+   }
+}
 
+void setup_ads(){
+
+    ads.setAddr_ADS1115(ADS1115_IIC_ADDRESS0);   // 0x48
+    switch (gain){
+	case 0:
+             accuracy=accuG23;
+             ads.setGain(eGAIN_TWOTHIRDS);
+	break;
+	case 1:
+             accuracy=accuG1;
+             ads.setGain(eGAIN_ONE);
+	break;
+	case 2:
+             accuracy=accuG2;
+             ads.setGain(eGAIN_TWO);
+	break;
+	case 3:
+             accuracy=accuG4;
+             ads.setGain(eGAIN_FOUR);
+	break;
+	case 4:
+             accuracy=accuG8;
+             ads.setGain(eGAIN_EIGHT);
+	break;
+	case 5:
+             accuracy=accuG16;
+             ads.setGain(eGAIN_SIXTEEN);
+	break;
+    }
+
+    ads.setMode(eMODE_CONTIN);       // single-shot mode
+    ads.setRate(eRATE_475);          // 128SPS (default)
+    ads.setOSMode(eOSMODE_SINGLE);   // Set to start a single-conversion
+    ads.init();
+}
 
 void setup() {
 
@@ -182,49 +219,10 @@ void setup() {
   //client.setCallback(callback);
   //setup_wifi();
 
-  switch (gain){
-	case 0:
-             accuracy=accuG23;
-             ads.setGain(GAIN_TWOTHIRDS);
-	break;
-	case 1:
-             accuracy=accuG1;
-             ads.setGain(GAIN_ONE);
-	break;
-	case 2:
-             accuracy=accuG2;
-             ads.setGain(GAIN_TWO);
-	break;
-	case 3:
-             accuracy=accuG4;
-             ads.setGain(GAIN_FOUR);
-	break;
-	case 4:
-             accuracy=accuG8;
-             ads.setGain(GAIN_EIGHT);
-	break;
-	case 5:
-             accuracy=accuG16;
-             ads.setGain(GAIN_SIXTEEN);
-	break;
-  }
-
-  ads.begin();
-  now_time = getTime();
+  setup_ads(); 
   now_millis = millis();
 }
 
-void loopGraph(void){
-    if(now_time + 1 <= ( getTime() * sampling_rate )){
-	now_time =getTime();
-  	double v= ads_read();
-	// radio csv format
-  	//Serial.print(now_time); Serial.print(","); Serial.println(v,9);
-	// gnu_plot format
-  	Serial.print(now_time *1.0 / sampling_rate); Serial.print(" "); Serial.println(v,9);
-
-   }
-}
 
 void samples_per_second(){
     long cur_millis = millis();
