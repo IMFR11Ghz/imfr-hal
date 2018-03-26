@@ -21,7 +21,7 @@
 #include "DRV8834.h"
 #include <Arduino.h>
 
-#include <DFRobot_ADS1115.h>
+#include <Adafruit_ADS1015.h>
 
 #include <WiFi.h>
 #include <WiFiMulti.h>
@@ -40,7 +40,6 @@ WiFiServer server(80);
 PubSubClient client(espClient);
 DynamicJsonBuffer jbuf;
 
-DFRobot_ADS1115 ads;
 long lastMsg = 0;
 char msg[75];
 int value = 0;
@@ -73,22 +72,14 @@ const double accuG8= 0.015625; //G8
 const double accuG16= 0.0078125;//G16
 
 const double sampling_rate = 5.0;
-const long DELTA50 = 20;
-const long DELTA10 = 100;
-const long DELTA1 = 1000;
-const long DELTA2 = 2000;
-const long DELTA_500 = 2;
-const long DELTA20 = 50;
-const long DELTA_1000 = 0.5;
+
 //CONFIG gain, accuracy and sazmpling delta
 
-long delta=DELTA50;
-const int gain=2;
-double accuracy= accuG1;
 double average_voltage =0;
+
 int nsamples =0;
 int ns =0;
-double cur_v =0.0;
+float cur_v =0.0;
 bool wifi=false;
 
 void callback_mqtt(char* topic, byte* payload, unsigned int length) {
@@ -164,52 +155,59 @@ void setup_socket_node(){
      client.setCallback(callback_mqtt);
 }
 
-double ads_read(void){
-   if (ads.checkADS1115()){
-        int16_t adc0;
-	adc0 = ads.readVoltage(0);
-        double voltage = (adc0 * accuracy )/1000.0;
-        return voltage;
-   }
-   else{
-	return -1.1111;
-   }
+const long DELTA50 = 20;
+const long DELTA10 = 100;
+const long DELTA1 = 1000;
+const long DELTA2 = 1000;
+const long DELTA_3 = 333;
+const long DELTA_500 = 2;
+const long DELTA20 = 50;
+const long DELTA_1000 = 0.5;
+
+Adafruit_ADS1115 ads;
+
+long delta=DELTA_500;
+const int gain=0;
+double accuracy;
+
+
+float ads_read(void){
+	const float v = ads.readADC_SingleEnded_V(0) ;
+	return v;
 }
 
 void setup_ads(){
 
-    ads.setAddr_ADS1115(ADS1115_IIC_ADDRESS0);   // 0x48
+    ads.begin();
     switch (gain){
 	case 0:
-             accuracy=accuG23;
-             ads.setGain(eGAIN_TWOTHIRDS);
+	     accuracy=accuG23;
+             ads.setGain(GAIN_TWOTHIRDS);
 	break;
 	case 1:
-             accuracy=accuG1;
-             ads.setGain(eGAIN_ONE);
+	     accuracy=accuG1;
+             ads.setGain(GAIN_ONE);
 	break;
 	case 2:
-             accuracy=accuG2;
-             ads.setGain(eGAIN_TWO);
+	     accuracy=accuG2;
+             ads.setGain(GAIN_TWO);
 	break;
 	case 3:
-             accuracy=accuG4;
-             ads.setGain(eGAIN_FOUR);
+	     accuracy=accuG4;
+             ads.setGain(GAIN_FOUR);
 	break;
 	case 4:
-             accuracy=accuG8;
-             ads.setGain(eGAIN_EIGHT);
+	     accuracy=accuG8;
+             ads.setGain(GAIN_EIGHT);
 	break;
 	case 5:
-             accuracy=accuG16;
-             ads.setGain(eGAIN_SIXTEEN);
+	     accuracy=accuG16;
+             ads.setGain(GAIN_SIXTEEN);
 	break;
     }
 
-    ads.setMode(eMODE_CONTIN);       // single-shot mode
-    ads.setRate(eRATE_475);          // 128SPS (default)
-    ads.setOSMode(eOSMODE_SINGLE);   // Set to start a single-conversion
-    ads.init();
+    ads.setSPS(ADS1115_DR_860SPS);          // 128SPS (default)
+    ads.waitForConversion(); 
 }
 
 void setup() {
@@ -228,40 +226,61 @@ void samples_per_second(){
     long cur_millis = millis();
     if(now_s + 1000 <=  cur_millis ){
 	now_s = millis();
-  	//Serial.print("samples per second "); Serial.println(ns);
+  	Serial.print("samples per second "); Serial.println(ns);
 	ns = 0;
 	
    }
+}
+
+void loopGraph(void){
+    long cur_millis = millis();
+    if(now_millis + delta <=  cur_millis ){
+        cur_v= ads_read();
+  	Serial.println(cur_v);
+	now_millis = millis();
+   }
+}
+void send_wifi(void){
+    //snprintf (msg, 75, ".2%f .2%f", time_secs,v);
+    //client.publish("sun", msg);
+
 }
 void loopGraphAcu(void){
     long cur_millis = millis();
     if(now_millis + delta <=  cur_millis ){
         cur_v= ads_read();
 	double time_secs = (now_millis / 1000.0);
-	double v = 0.0;
+  	Serial.print(time_secs); Serial.print(" ");  Serial.print(" ");  Serial.println(cur_v,9);
 
+	now_millis = millis();
+	ns+=1;
+   }
+}
+
+void loopGraphAverage(void){
+    long cur_millis = millis();
+    if(now_millis + delta <=  cur_millis ){
+	double time_secs = (now_millis / 1000.0);
+	double v = 0.0;
         if( average_voltage > 0 && nsamples > 0 )
 	     v = average_voltage * 1.0 / nsamples;
 	else
 	     v = cur_v;
 
-
   	Serial.print(time_secs); Serial.print(" ");  Serial.print(" ");  Serial.println(v,9);
 	average_voltage = v;
 
-	//snprintf (msg, 75, ".2%f .2%f", time_secs,v);
-  	//client.publish("sun", msg);
 
 	now_millis = millis();
 	ns+=1;
    }
    else{
+        cur_v= ads_read();
         average_voltage += cur_v;
 	nsamples += 1;
    }
 //client.stop();
 }
-
 
 void loop(void) {
   //if (!client.connected()) {
