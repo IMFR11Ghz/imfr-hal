@@ -287,6 +287,6 @@ void loop(void) {
   //  reconnect();
   //}
   //client.loop();
-  samples_per_second();
+  //samples_per_second();
   loopGraphAcu();
 }
