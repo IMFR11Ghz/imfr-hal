@@ -72,6 +72,7 @@ int8_t minutesTimeZone = 0;
 bool wifiFirstConnected = false;
 time_t now_time;
 long now_millis;
+long now_millis_send;
 long now_s;
 float voltage = 0.0;
 int16_t adc0;
@@ -86,7 +87,7 @@ const double accuG16= 0.0078125;//G16
 const double sampling_rate = 5.0;
 
 //CONFIG gain, accuracy and sazmpling delta
-
+int ns=0;
 bool wifi=false;
 
 const int DIR = 18;
@@ -161,6 +162,7 @@ void setup_wifi(void) {
         Serial.print(".");
         delay(500);
     }
+    /*
     NTP.onNTPSyncEvent ([](NTPSyncEvent_t event) {
         ntpEvent = event;
         syncEventTriggered = true;
@@ -172,6 +174,7 @@ void setup_wifi(void) {
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP());
     delay(500);
+    */
 }
 
 
@@ -202,7 +205,7 @@ void setup_socket_node(){
      mqtt.setCallback(callback_mqtt);
 }
 
-const long DELTA_500 = 2;
+const long DELTA_500 = 4;
 long delta=DELTA_500;
 const int gain=0;
 double accuracy;
@@ -250,41 +253,50 @@ void setup_ads(){
 void setup() {
 
   Serial.begin(115200);
-  setup_socket_node();
+  //setup_socket_node();
   setup_ads(); 
   //setup_motor();
   now_millis = millis();
+  now_millis_send = millis();
 }
 
 String adc_packet_data(double t, float v){
-   String time = "\"t\":\"" + String(t) +"\"";
-   String voltage = "\"v\":\"" + String(v)+"\"";
-   String input = "{"+ time + "," + voltage + "}";
+   String input = "[" + String(t) + "," + String(v,7) + "]";
    return input;
 
 }
 
-void send_data(void){
-	const char *payload = pkg.c_str();
+
+void send_data(String buffer){
+	const char *payload = buffer.c_str();
 	Serial.println(payload);
-	//mqtt.publish("telescope",payload);
+	mqtt.publish("telescope",payload);
 }
 
-void send_loopFPS(void){
-
-   long cur_millis = millis();
-   if(now_millis + 1000 <=  cur_millis ){
-	now_millis = millis();
+void prepare_data(void){
 	int len = pkg.length();
 	pkg.remove(len-1);
-	pkg = "[" + pkg + "]";
-	send_data();
+	pkg = "{" + pkg + "}";
+	String complete_pkg = pkg;
+	send_data(complete_pkg);
 	pkg = "";
-   }
-   else{
+}
+
+void loopGraphAcu(void){
+    long cur_millis = millis();
+    if(now_millis + delta <=  cur_millis ){
 	float v_i= ads_read();
 	double t_i = (now_millis / 1000.0);
-        pkg = pkg + adc_packet_data(t_i,v_i ) + ", ";
+  	//Serial.print(t_i); Serial.print(" ");  Serial.print(" ");  Serial.println(v_i,9);
+	if(ns >= 5){
+	    ns=0;
+	    prepare_data();
+	}
+	else{
+	    ns+=1;
+	    pkg = pkg + adc_packet_data(t_i,v_i ) + ",";
+      	    now_millis = millis();
+	}
 
    }
 }
@@ -298,13 +310,13 @@ void loop_motor(){
 void loop_connection(){
   if (!mqtt.connected()) { reconnect();}
   mqtt.loop();
-  Serial.println(now());
-  Serial.println (NTP.getTimeDateString (NTP.getLastNTPSync ()));
+  //Serial.println(now());
+  //Serial.println (NTP.getTimeDateString (NTP.getLastNTPSync ()));
 }
 
 void loop(void) {
-  loop_connection();
-  send_loopFPS();
+  //loop_connection();
+  loopGraphAcu();
   //samples_per_second();
   //loop_motor();
 }
