@@ -20,7 +20,7 @@
 #include "DRV8825.h"
 #include "DRV8834.h"
 #include <Arduino.h>
-
+#include <NtpClientLib.h>
 #include <Adafruit_ADS1015.h>
 
 #include <WiFi.h>
@@ -31,36 +31,48 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 
+//Everything motor
+//
+#define MOTOR_STEPS 200
 
+// microstep control for DRV8834
+//#define M0 2
+//#define M1 3
+// DRV8834 stepper(MOTOR_STEPS, DIR, STEP, M0, M1);
 
-// wifi related stuff 
-WiFiMulti WiFiMulti;
-WiFiClient espClient;
-WiFiServer server(80);
-PubSubClient client(espClient);
-DynamicJsonBuffer jbuf;
+// microstep control for A4988
+// #define MS1 10
+// #define MS2 11
+// #define MS3 12
+// A4988 stepper(MOTOR_STEPS, DIR, STEP, MS1, MS2, MS3);
+
+// microstep control for DRV8825
+// same pinout as A4988, different pin names, supports 32 microsteps
+#define MODE0 2
+#define MODE1 3
+#define MODE2 13
+
 
 long lastMsg = 0;
 char msg[75];
 int value = 0;
-const uint16_t port = 6666;
+
 const char * host = "192.168.0.3"; // ip or dns
-const char* mqtt_server2 = "192.168.0.6";
-const char* mqtt_server = "192.168.43.186";
-// Use WiFiClient class to create TCP connections
+DynamicJsonBuffer jbuf;
+char server_mqtt[] = "sensors.trace.global";
 
+WiFiMulti Wifi;
+WiFiClient esp;
+PubSubClient mqtt(esp);
+boolean syncEventTriggered = false; // True if a time even has been triggered
+NTPSyncEvent_t ntpEvent; // Last triggered event
 
-//Adafruit_ADS1115 ads;
-
+int8_t timeZone = -5;
+int8_t minutesTimeZone = 0;
+bool wifiFirstConnected = false;
 time_t now_time;
 long now_millis;
 long now_s;
-const int DIR = 32;
-const int STEP = 33;
-
-
-int stop = 0;
-int rotate = 360;
 float voltage = 0.0;
 int16_t adc0;
 
@@ -75,72 +87,107 @@ const double sampling_rate = 5.0;
 
 //CONFIG gain, accuracy and sazmpling delta
 
-double average_voltage =0;
-
-int nsamples =0;
-int ns =0;
-float cur_v =0.0;
 bool wifi=false;
 
+const int DIR = 18;
+const int STEP = 19;
+DRV8825 stepper(MOTOR_STEPS, DIR, STEP, MODE0, MODE1, MODE2);
+
+int stop = 0;
+int rotate = 360;
+void setup_motor(void){
+  stepper.setRPM(1);
+  stepper.setMicrostep(2); // micro step config
+}
+
+void onEvent (system_event_id_t event, system_event_info_t info) {
+    Serial.printf ("[WiFi-event] event: %d\n", event);
+
+    switch (event) {
+    case SYSTEM_EVENT_STA_CONNECTED:
+        Serial.printf ("Connected to %s\r\n", info.connected.ssid);
+        break;
+    case SYSTEM_EVENT_STA_GOT_IP:
+        Serial.printf ("Got IP: %s\r\n", IPAddress (info.got_ip.ip_info.ip.addr).toString ().c_str ());
+        Serial.printf ("Connected: %s\r\n", WiFi.status () == WL_CONNECTED ? "yes" : "no");
+        wifiFirstConnected = true;
+        break;
+    case SYSTEM_EVENT_STA_DISCONNECTED:
+        Serial.printf ("Disconnected from SSID: %s\n", info.disconnected.ssid);
+        Serial.printf ("Reason: %d\n", info.disconnected.reason);
+        //NTP.stop(); // NTP sync can be disabled to avoid sync errors
+        break;
+     default:
+        break;
+    }
+    Serial.println(); 
+}
+
+void processSyncEvent (NTPSyncEvent_t ntpEvent) {
+    if (ntpEvent) {
+        Serial.print ("Time Sync error: ");
+        if (ntpEvent == noResponse)
+            Serial.println ("NTP server not reachable");
+        else if (ntpEvent == invalidAddress)
+            Serial.println ("Invalid NTP server address");
+    } else {
+        Serial.print ("Got NTP time: ");
+        Serial.println (NTP.getTimeDateString (NTP.getLastNTPSync ()));
+    }
+}
+
+void parseJsonString(const char * payload_js) {
+   JsonObject& root = jbuf.parseObject(payload_js);
+   String data = "";
+   root.printTo(data);
+   Serial.println(data);
+}
+
 void callback_mqtt(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  for (int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
-  }
-  Serial.println();
-  const char*jb=(char *)payload;
-  JsonObject& root = jbuf.parseObject(jb);
+  Serial.println(topic);
+  const char* payload_js=(char *)payload;
+  parseJsonString(payload_js);
 }
 
-
-/*
-void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  for (int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
-  }
-  Serial.println();
-
-}
-*/
+  
 void setup_wifi(void) {
     delay(10);
-    // We start by connecting to a WiFi network
-    WiFiMulti.addAP("radio", "12345678");
+    Wifi.addAP("Home47", "#1018405230#");
     Serial.println();
     Serial.print("Wait for WiFi... ");
     Serial.println();
-
-    while(WiFiMulti.run() != WL_CONNECTED) {
+    WiFi.onEvent (onEvent);
+    while(Wifi.run() != WL_CONNECTED) {
         Serial.print(".");
         delay(500);
     }
-
+    NTP.onNTPSyncEvent ([](NTPSyncEvent_t event) {
+        ntpEvent = event;
+        syncEventTriggered = true;
+    });
+    NTP.begin ("pool.ntp.org", timeZone, true, minutesTimeZone);
+	    NTP.setInterval (63);
     Serial.println("");
     Serial.println("WiFi connected");
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP());
     delay(500);
 }
+
+
 void reconnect() {
   // Loop until we're reconnected
-  while (!client.connected()) {
+  while (!mqtt.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Attempt to connect
-    if (client.connect("ESP8266Client")) {
+    bool connection = mqtt.connect("temp","acurite","tr4c32018");
+    //bool connection = mqtt.connect("temp");
+    if (connection) {
       Serial.println("connected");
-      // Once connected, publish an announcement...
-      client.publish("sun", "heartbeat");
-      client.subscribe("sun");
-
-      // ... and resubscribe
+      //mqtt.subscribe("sun");
     } else {
       Serial.print("failed, rc=");
-      Serial.print(client.state());
+      Serial.print(mqtt.state());
       Serial.println(" try again in 5 seconds");
       // Wait 5 seconds before retrying
       delay(5000);
@@ -151,25 +198,16 @@ void reconnect() {
 
 void setup_socket_node(){
      setup_wifi();
-     client.setServer(mqtt_server, 1883);
-     client.setCallback(callback_mqtt);
+     mqtt.setServer(server_mqtt, 1883);
+     mqtt.setCallback(callback_mqtt);
 }
 
-const long DELTA50 = 20;
-const long DELTA10 = 100;
-const long DELTA1 = 1000;
-const long DELTA2 = 1000;
-const long DELTA_3 = 333;
 const long DELTA_500 = 2;
-const long DELTA20 = 50;
-const long DELTA_1000 = 0.5;
-
-Adafruit_ADS1115 ads;
-
 long delta=DELTA_500;
 const int gain=0;
 double accuracy;
-
+Adafruit_ADS1115 ads;
+String pkg="";
 
 float ads_read(void){
 	const float v = ads.readADC_SingleEnded_V(0) ;
@@ -177,7 +215,6 @@ float ads_read(void){
 }
 
 void setup_ads(){
-
     ads.begin();
     switch (gain){
 	case 0:
@@ -213,80 +250,61 @@ void setup_ads(){
 void setup() {
 
   Serial.begin(115200);
-  //client.setServer(mqtt_server, 1883);
-  //client.setCallback(callback);
-  //setup_wifi();
-
+  setup_socket_node();
   setup_ads(); 
+  //setup_motor();
   now_millis = millis();
 }
 
+String adc_packet_data(double t, float v){
+   String time = "\"t\":\"" + String(t) +"\"";
+   String voltage = "\"v\":\"" + String(v)+"\"";
+   String input = "{"+ time + "," + voltage + "}";
+   return input;
 
-void samples_per_second(){
-    long cur_millis = millis();
-    if(now_s + 1000 <=  cur_millis ){
-	now_s = millis();
-  	Serial.print("samples per second "); Serial.println(ns);
-	ns = 0;
-	
-   }
 }
 
-void loopGraph(void){
-    long cur_millis = millis();
-    if(now_millis + delta <=  cur_millis ){
-        cur_v= ads_read();
-  	Serial.println(cur_v);
+void send_data(void){
+	const char *payload = pkg.c_str();
+	Serial.println(payload);
+	//mqtt.publish("telescope",payload);
+}
+
+void send_loopFPS(void){
+
+   long cur_millis = millis();
+   if(now_millis + 1000 <=  cur_millis ){
 	now_millis = millis();
-   }
-}
-void send_wifi(void){
-    //snprintf (msg, 75, ".2%f .2%f", time_secs,v);
-    //client.publish("sun", msg);
-
-}
-void loopGraphAcu(void){
-    long cur_millis = millis();
-    if(now_millis + delta <=  cur_millis ){
-        cur_v= ads_read();
-	double time_secs = (now_millis / 1000.0);
-  	Serial.print(time_secs); Serial.print(" ");  Serial.print(" ");  Serial.println(cur_v,9);
-
-	now_millis = millis();
-	ns+=1;
-   }
-}
-
-void loopGraphAverage(void){
-    long cur_millis = millis();
-    if(now_millis + delta <=  cur_millis ){
-	double time_secs = (now_millis / 1000.0);
-	double v = 0.0;
-        if( average_voltage > 0 && nsamples > 0 )
-	     v = average_voltage * 1.0 / nsamples;
-	else
-	     v = cur_v;
-
-  	Serial.print(time_secs); Serial.print(" ");  Serial.print(" ");  Serial.println(v,9);
-	average_voltage = v;
-
-
-	now_millis = millis();
-	ns+=1;
+	int len = pkg.length();
+	pkg.remove(len-1);
+	pkg = "[" + pkg + "]";
+	send_data();
+	pkg = "";
    }
    else{
-        cur_v= ads_read();
-        average_voltage += cur_v;
-	nsamples += 1;
+	float v_i= ads_read();
+	double t_i = (now_millis / 1000.0);
+        pkg = pkg + adc_packet_data(t_i,v_i ) + ", ";
+
    }
-//client.stop();
+}
+
+void loop_motor(){
+  Serial.println("servo rotate  360..");
+  stepper.rotate(-360);
+  delay(2000);
+}
+
+void loop_connection(){
+  if (!mqtt.connected()) { reconnect();}
+  mqtt.loop();
+  Serial.println(now());
+  Serial.println (NTP.getTimeDateString (NTP.getLastNTPSync ()));
 }
 
 void loop(void) {
-  //if (!client.connected()) {
-  //  reconnect();
-  //}
-  //client.loop();
+  loop_connection();
+  send_loopFPS();
   //samples_per_second();
-  loopGraphAcu();
+  //loop_motor();
 }
