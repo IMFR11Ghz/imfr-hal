@@ -157,13 +157,13 @@ void app_main() {
   // CA4988Stepper stepper(2, 15, 800);
   int steps = 800*3;
   int rpm = 60*5;
-  stepper_init(21, 18, 800, LEDC_HIGH_SPEED_MODE, LEDC_TIMER_0, LEDC_CHANNEL_1, PCNT_UNIT_1, PCNT_CHANNEL_0);
+  stepper_init(21, 18, 800, LEDC_HIGH_SPEED_MODE, LEDC_TIMER_0, LEDC_CHANNEL_0, PCNT_UNIT_0, PCNT_CHANNEL_0);
   set_speed_rpm(rpm,false);
   step(steps,portMAX_DELAY, false);
   run(-1, false);
-  stop(true);
+  //stop(true);
   
-  xTaskCreatePinnedToCore(ads111x_read, "ads111x", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
+  //xTaskCreatePinnedToCore(ads111x_read, "ads111x", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
   //xTaskCreate(&blink_task, "blink_task", 2048, NULL, 5, NULL);
 
 }
