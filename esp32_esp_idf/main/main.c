@@ -5,7 +5,7 @@
 #include <esp_mqtt.h>
 #include <esp_wifi.h>
 #include <nvs_flash.h>
-
+#include <a4988.h>
 #include <ads111x.h>
 #define WIFI_SSID "tracenet"
 #define WIFI_PASS "fulanito_tr4c3"
@@ -52,7 +52,7 @@ void ads111x_read(void *pvParamters){
         int16_t raw = 0;
         if (ads111x_get_value(&dev, &raw) == ESP_OK){
             float voltage = gain_val / ADS111X_MAX_VALUE * raw;
-            printf("Raw ADC value: %d, voltage: %.04f volts\n", raw, voltage);
+            //printf("Raw ADC value: %d, voltage: %.04f volts\n", raw, voltage);
 	    char buf[6];
 	    sprintf(buf, "%.04f", voltage);
 	    esp_mqtt_publish("/hello", (uint8_t *)buf, 5, 2, false);
@@ -151,9 +151,17 @@ void app_main() {
   esp_mqtt_init(status_callback, message_callback, 256, 2000);
 
   // create tasks
-  xTaskCreatePinnedToCore(restart, "restart", 2048, NULL, 10, NULL, 1);
+  //xTaskCreatePinnedToCore(restart, "restart", 2048, NULL, 10, NULL, 1);
   //
   //ads1115_t ads = ads1115_config(I2C_MASTER_NUM, ADS1115_ADDR);
+  // CA4988Stepper stepper(2, 15, 800);
+  int steps = 800*3;
+  int rpm = 60*5;
+  stepper_init(21, 18, 800, LEDC_HIGH_SPEED_MODE, LEDC_TIMER_0, LEDC_CHANNEL_1, PCNT_UNIT_1, PCNT_CHANNEL_0);
+  set_speed_rpm(rpm,false);
+  step(steps,portMAX_DELAY, false);
+  run(-1, false);
+  stop(true);
   
   xTaskCreatePinnedToCore(ads111x_read, "ads111x", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
   //xTaskCreate(&blink_task, "blink_task", 2048, NULL, 5, NULL);
