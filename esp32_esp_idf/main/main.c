@@ -7,10 +7,19 @@
 #include <nvs_flash.h>
 #include <a4988.h>
 #include <ads111x.h>
-#define WIFI_SSID "tracenet"
-#define WIFI_PASS "fulanito_tr4c3"
+#include <time.h>
+#include <sys/time.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+//#define WIFI_SSID "tracenet"
+//#define WIFI_PASS "fulanito_tr4c3"
 
-#define MQTT_HOST "192.168.43.126"
+//#define MQTT_HOST "192.168.43.126"
+
+#define WIFI_SSID "Home47"
+#define WIFI_PASS "#1018405230#"
+#define MQTT_HOST "192.168.0.4"
 #define MQTT_USER ""
 #define MQTT_PASS ""
 #define MQTT_PORT "1883"
@@ -18,49 +27,58 @@
 #define SCL_GPIO 21
 #define ADDRESS ADS111X_ADDR_GND // connect ADDR pin to GND
 #define GAIN ADS111X_GAIN_4V096
+static i2c_dev_t dev;
+static float gain_val;
 
+int now(void){
+    struct timeval tv;
+    int sec;
+    gettimeofday(&tv, NULL);
+    sec = tv.tv_sec; 
+    return sec;
+}
+
+float timing(void){
+    struct timeval tv;
+    struct timezone tz;
+    if (gettimeofday(&tv, &tz) == 0) {
+        //return (tv.tv_sec * 1000.0) + (tv.tv_usec / 1000.0);
+        return tv.tv_sec + (tv.tv_usec / 1000000.0);
+    }
+    return 0.0f;
+}
+float get_voltage(i2c_dev_t dev, float gain_val){
+	bool busy;
+	do{
+	    ads111x_is_busy(&dev, &busy);
+	}
+	while (busy);
+	// Read result
+	int16_t raw = 0;
+	if (ads111x_get_value(&dev, &raw) == ESP_OK){
+	    float voltage = gain_val / ADS111X_MAX_VALUE * raw;
+	    return voltage;
+	}
+	return 0.0f;
+}
 
 void ads111x_read(void *pvParamters){
-
-    i2c_dev_t dev;
-    while (i2cdev_init() != ESP_OK){
-        printf("Could not init I2Cdev library\n");
-        vTaskDelay(250 / portTICK_PERIOD_MS);
-    }
-
-    while (ads111x_init_desc(&dev, ADDRESS, 0, SDA_GPIO, SCL_GPIO) != ESP_OK){
-        printf("Could not init device descriptor\n");
-        vTaskDelay(250 / portTICK_PERIOD_MS);
-    }
-
-    ads111x_set_mode(&dev, ADS111X_MODE_CONTUNOUS);
-    ads111x_set_data_rate(&dev, ADS111X_DATA_RATE_860);
-    ads111x_set_input_mux(&dev, ADS111X_MUX_0_GND);
-    ads111x_set_gain(&dev, GAIN);
-
-
-    float gain_val = ads111x_gain_values[GAIN];
     for (;;){
-        // wait for conversion end
-        bool busy;
-        do{
-            ads111x_is_busy(&dev, &busy);
-        }
-        while (busy);
-
-        // Read result
-        int16_t raw = 0;
-        if (ads111x_get_value(&dev, &raw) == ESP_OK){
-            float voltage = gain_val / ADS111X_MAX_VALUE * raw;
-            //printf("Raw ADC value: %d, voltage: %.04f volts\n", raw, voltage);
-	    char buf[6];
-	    sprintf(buf, "%.04f", voltage);
-	    esp_mqtt_publish("/hello", (uint8_t *)buf, 5, 2, false);
-
-        }
-        else
-            printf("Cannot read ADC value\n");
-        //vTaskDelay(5 / portTICK_PERIOD_MS);
+	int i=0,chunk=20,len=2;
+	char buf[(chunk * len) +1];
+	sprintf(buf, "\'[");
+	for (i = 0; i < len-1; i++){
+	    float time = timing();
+	    float voltage = get_voltage(dev, gain_val);
+	    sprintf(buf + strlen(buf), "{\"x\":%.2f,\"y\":%.04f},", time, voltage);
+	    //printf("%.02f %.04f \n ", time, voltage);
+	}
+	float time = timing();
+	float voltage = get_voltage(dev, gain_val);
+	sprintf(buf + strlen(buf), "{\"x\":%.2f,\"y\":%.04f}]\'", time, voltage);
+	printf("buffer:%s\n", buf);
+	esp_mqtt_publish("telescope", (uint8_t *)buf, strlen(buf), 1, false);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
 
@@ -120,6 +138,22 @@ static void message_callback(const char *topic, uint8_t *payload, size_t len) {
   ESP_LOGI("test", "incoming: %s => %s (%d)", topic, payload, (int)len);
 }
 
+static void setup_ads(void){
+    gain_val = ads111x_gain_values[GAIN];
+    while (i2cdev_init() != ESP_OK){
+        printf("Could not init I2Cdev library\n");
+        vTaskDelay(250 / portTICK_PERIOD_MS);
+    }
+
+    while (ads111x_init_desc(&dev, ADDRESS, 0, SDA_GPIO, SCL_GPIO) != ESP_OK){
+        printf("Could not init device descriptor\n");
+        vTaskDelay(250 / portTICK_PERIOD_MS);
+    }
+    ads111x_set_mode(&dev, ADS111X_MODE_CONTUNOUS);
+    ads111x_set_data_rate(&dev, ADS111X_DATA_RATE_860);
+    ads111x_set_input_mux(&dev, ADS111X_MUX_0_GND);
+    ads111x_set_gain(&dev, GAIN);
+}
 void app_main() {
   // initialize nvs flash
   ESP_ERROR_CHECK(nvs_flash_init());
@@ -150,20 +184,25 @@ void app_main() {
   // initialize mqtt
   esp_mqtt_init(status_callback, message_callback, 256, 2000);
 
+  setup_ads();
+
   // create tasks
   //xTaskCreatePinnedToCore(restart, "restart", 2048, NULL, 10, NULL, 1);
   //
   //ads1115_t ads = ads1115_config(I2C_MASTER_NUM, ADS1115_ADDR);
   // CA4988Stepper stepper(2, 15, 800);
+  
+  /* 
   int steps = 800*3;
   int rpm = 60*5;
   stepper_init(21, 18, 800, LEDC_HIGH_SPEED_MODE, LEDC_TIMER_0, LEDC_CHANNEL_0, PCNT_UNIT_0, PCNT_CHANNEL_0);
   set_speed_rpm(rpm,false);
   step(steps,portMAX_DELAY, false);
   run(-1, false);
+  */
   //stop(true);
   
   //xTaskCreatePinnedToCore(ads111x_read, "ads111x", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
-  //xTaskCreate(&blink_task, "blink_task", 2048, NULL, 5, NULL);
+  xTaskCreate(&ads111x_read, "ads", 2048, NULL, 5, NULL);
 
 }

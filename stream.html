@@ -1,0 +1,87 @@
+<!--
+   
+   Copyright (c) 2017, the Perspective Authors.
+   
+   This file is part of the Perspective library, distributed under the terms of
+   the Apache License 2.0.  The full license can be found in the LICENSE file.
+
+-->
+
+<!DOCTYPE html>
+<html>
+    <head>
+
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1">
+
+        <script src="mobile_fix.js"></script>
+        <script src="perspective.view.js"></script>
+        <script src="hypergrid.plugin.js"></script>
+        <script src="highcharts.plugin.js"></script>
+	<script src="https://unpkg.com/mqtt@2.12.0/dist/mqtt.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.js
+"></script>
+
+        <link rel='stylesheet' href="demo.css">
+
+    </head>
+    <body>
+
+        <perspective-viewer 
+	    view='xy_line'
+            columns='["x","y"]'>
+                
+        </perspective-viewer>
+
+        <script>
+
+            window.addEventListener('WebComponentsReady', function () {
+		/*
+                var socket = mqtt.connect({protocolId: 'MQTT', host: '192.168.0.4', port: 1883 });
+		socket.on('connect', function () {
+		  console.log("connected");
+		  socket.subscribe('telescope')
+		});
+                socket.on('telescope', function (topic,payload) {
+		    let data = JSON.parse(payload);
+		    console.log(data);
+                    document.getElementsByTagName('perspective-viewer')[0].update([data.data]);
+                });
+		*/
+		client = new Paho.MQTT.Client("192.168.0.4", Number(1884), "clientId");
+
+		// set callback handlers
+		client.onConnectionLost = onConnectionLost;
+		client.onMessageArrived = onMessageArrived;
+
+		// connect the client
+		client.connect({onSuccess:onConnect});
+
+
+		// called when the client connects
+		function onConnect() {
+		  // Once a connection has been made, make a subscription and send a message.
+		  console.log("onConnect");
+		  client.subscribe("telescope");
+		}
+		// called when the client loses its connection
+		function onConnectionLost(responseObject) {
+		  if (responseObject.errorCode !== 0) {
+		    console.log("onConnectionLost:"+responseObject.errorMessage);
+		  }
+		}
+
+		// called when a message arrives
+		function onMessageArrived(message) {
+		  //console.log("onMessageArrived:"+message.payloadString);
+		  var data=message.payloadString.slice(1,-1);
+	      	  let payload = JSON.parse(data);
+
+                  document.getElementsByTagName('perspective-viewer')[0].update(payload);
+
+		}
+            });
+
+        </script>
+
+    </body>
+</html>
