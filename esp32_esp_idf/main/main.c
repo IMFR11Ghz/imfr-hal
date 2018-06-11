@@ -17,9 +17,11 @@
 
 //#define MQTT_HOST "192.168.43.126"
 
-#define WIFI_SSID "Home47"
-#define WIFI_PASS "#1018405230#"
-#define MQTT_HOST "192.168.0.4"
+#define WIFI_SSID "TUTANCANEI"
+//#define WIFI_SSID "Home47"
+#define WIFI_PASS "d1032412586C"
+//#define WIFI_PASS "#1018405230#"
+#define MQTT_HOST "192.168.0.16"
 #define MQTT_USER ""
 #define MQTT_PASS ""
 #define MQTT_PORT "1883"
@@ -78,7 +80,7 @@ void ads111x_read(void *pvParamters){
 	sprintf(buf + strlen(buf), "{\"x\":%.2f,\"y\":%.04f}]\'", time, voltage);
 	printf("buffer:%s\n", buf);
 	esp_mqtt_publish("telescope", (uint8_t *)buf, strlen(buf), 1, false);
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+        vTaskDelay(2 / portTICK_PERIOD_MS);
     }
 }
 

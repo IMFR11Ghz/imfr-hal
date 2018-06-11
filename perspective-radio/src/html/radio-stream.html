@@ -13,20 +13,20 @@
 
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1">
 
-        <script src="mobile_fix.js"></script>
+       <script src="mobile_fix.js"></script>
         <script src="perspective.view.js"></script>
         <script src="hypergrid.plugin.js"></script>
         <script src="highcharts.plugin.js"></script>
-	<script src="https://unpkg.com/mqtt@2.12.0/dist/mqtt.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.js
+      	<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.js
 "></script>
+
 
         <link rel='stylesheet' href="demo.css">
 
     </head>
     <body>
 
-        <perspective-viewer 
+       <perspective-viewer 
 	    view='xy_line'
             columns='["x","y"]'>
                 
@@ -35,19 +35,7 @@
         <script>
 
             window.addEventListener('WebComponentsReady', function () {
-		/*
-                var socket = mqtt.connect({protocolId: 'MQTT', host: '192.168.0.4', port: 1883 });
-		socket.on('connect', function () {
-		  console.log("connected");
-		  socket.subscribe('telescope')
-		});
-                socket.on('telescope', function (topic,payload) {
-		    let data = JSON.parse(payload);
-		    console.log(data);
-                    document.getElementsByTagName('perspective-viewer')[0].update([data.data]);
-                });
-		*/
-		client = new Paho.MQTT.Client("192.168.0.4", Number(1884), "clientId");
+				client = new Paho.MQTT.Client("192.168.0.16", Number(1884), "clientId");
 
 		// set callback handlers
 		client.onConnectionLost = onConnectionLost;
@@ -72,11 +60,23 @@
 
 		// called when a message arrives
 		function onMessageArrived(message) {
-		  //console.log("onMessageArrived:"+message.payloadString);
 		  var data=message.payloadString.slice(1,-1);
 	      	  let payload = JSON.parse(data);
 
-                  document.getElementsByTagName('perspective-viewer')[0].update(payload);
+                  let dom = document.getElementsByTagName('perspective-viewer');
+                  var viewer = dom[0];
+    		  if (viewer._table == null)  viewer.update(payload);
+		  viewer._table.size().then((size)=>{
+			console.log(size);
+			let len = size;
+			if (len > 2000){
+			     viewer.load(payload);	
+			}
+			else{
+			    viewer.update(payload);
+			}	
+		  });
+
 
 		}
             });

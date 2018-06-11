@@ -1,0 +1,46 @@
+{
+  "name": "@jpmorganchase/perspective-radio",
+  "version": "0.1.14",
+  "description": "Perspective.js",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "files": [
+    "src/*",
+    "build/*"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "npm run copy && npm-run-all -l -p build:*",
+    "build:view": "webpack --config ../perspective-viewer/test/config/view.config.js --context ../perspective-viewer/ --output-path ../perspective-radio/build",
+    "build:hypergrid": "webpack --config ../perspective-viewer-hypergrid/test/config/hypergrid.config.js --context ../perspective-viewer-hypergrid/ --output-path ../perspective-radio/build",
+    "build:highcharts": "webpack --config ../perspective-viewer-highcharts/test/config/highcharts.config.js --context ../perspective-viewer-highcharts/ --output-path ../perspective-radio/build",
+    "build_test": "npm run copy",
+    "copy": "mkdir -p build && cp -r node_modules/@jpmorganchase/perspective/build/* build && cp -r node_modules/@jpmorganchase/perspective-viewer/build/*.css build && cp src/html/* build && cp src/css/* build && cp src/js/* build",
+    "host": "http-server build/",
+    "clean": "find build -mindepth 1 -delete"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jpmorganchase/perspective"
+  },
+  "author": "",
+  "license": "Apache",
+  "dependencies": {
+    "@jpmorganchase/perspective": "^0.1.14",
+    "@jpmorganchase/perspective-viewer": "^0.1.14",
+    "@jpmorganchase/perspective-viewer-highcharts": "^0.1.14",
+    "@jpmorganchase/perspective-viewer-hypergrid": "^0.1.14",
+    "babel-runtime": "^6.26.0",
+    "query-string": "^5.0.1",
+    "rectangular": "1.0.1",
+    "ws": "^3.3.2"
+  },
+  "devDependencies": {
+    "http-server": "^0.10.0",
+    "npm-run-all": "^4.1.2"
+  }
+}
