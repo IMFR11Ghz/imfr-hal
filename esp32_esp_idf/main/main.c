@@ -17,11 +17,11 @@
 
 //#define MQTT_HOST "192.168.43.126"
 
-#define WIFI_SSID "TUTANCANEI"
-//#define WIFI_SSID "Home47"
-#define WIFI_PASS "d1032412586C"
-//#define WIFI_PASS "#1018405230#"
-#define MQTT_HOST "192.168.0.16"
+//#define WIFI_SSID "TUTANCANEI"
+#define WIFI_SSID "Home47"
+//#define WIFI_PASS "d1032412586C"
+#define WIFI_PASS "#1018405230#"
+#define MQTT_HOST "192.168.0.4"
 #define MQTT_USER ""
 #define MQTT_PASS ""
 #define MQTT_PORT "1883"
@@ -66,9 +66,10 @@ float get_voltage(i2c_dev_t dev, float gain_val){
 
 void ads111x_read(void *pvParamters){
     for (;;){
-	int i=0,chunk=20,len=2;
+	int i=0,chunk=20,len=1;
 	char buf[(chunk * len) +1];
-	sprintf(buf, "\'[");
+	//sprintf(buf, "\'[");
+	sprintf(buf, "\'");
 	for (i = 0; i < len-1; i++){
 	    float time = timing();
 	    float voltage = get_voltage(dev, gain_val);
@@ -77,10 +78,11 @@ void ads111x_read(void *pvParamters){
 	}
 	float time = timing();
 	float voltage = get_voltage(dev, gain_val);
-	sprintf(buf + strlen(buf), "{\"x\":%.2f,\"y\":%.04f}]\'", time, voltage);
+	sprintf(buf + strlen(buf), "{\"x\":%.2f,\"y\":%.04f}\'", time, voltage);
+	//sprintf(buf + strlen(buf), "{\"x\":%.2f,\"y\":%.04f}]\'", time, voltage);
 	printf("buffer:%s\n", buf);
 	esp_mqtt_publish("telescope", (uint8_t *)buf, strlen(buf), 1, false);
-        vTaskDelay(2 / portTICK_PERIOD_MS);
+        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }
 

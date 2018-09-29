@@ -1,0 +1,217 @@
+<html>
+
+<head>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/c3/0.6.3/c3.css" rel="stylesheet"
+        type="text/css">
+</head>
+
+<body>
+    <div id="chart"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.js"></script>
+    <script src="http://d3js.org/d3.v5.min.js" charset="utf-8"></script>
+    <script src="https://cdn.jsdelivr.net/gh/ethereum/web3.js@1.0.0-beta.36/dist/web3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/c3/0.6.3/c3.js"></script>
+    <script src="https://code.jquery.com/jquery-3.3.1.js" integrity="sha256-2Kok7MbOyxpgUVvAk/HJ2jigOSYS2auK4Pfzbm7uH60="
+        crossorigin="anonymous"></script>
+    <script>
+        var chart;
+        var values = [];
+        <!-- Get data from rest express API for contract events -->
+	let datatopairs = (vals) => {
+		let csv = [];
+		console.log(vals[0]);
+		for (var ith in vals) {
+			let pair = vals[ith];
+  			csv.push(pair['x'] +","+ pair['y']);
+		}
+		return csv;
+	}
+        let datatocsv = () =>
+        {
+            var fileName = "data.csv";
+            if ("download" in document.createElement("a"))
+            {
+ 		let table = values.slice();
+		let csv = datatopairs(table);
+                var link = $(
+                    "<a target='_blank' href='data:text/csv;charset=utf-8,%EF%BB%BF" +
+                    encodeURI(csv.join("\n")) + "' download='" +
+                    fileName + "'></a>");
+                link.appendTo("body");
+                link[0].click();
+                setTimeout(function()
+                {
+                    link.remove();
+                }, 50);
+                return;
+            }
+
+            var txt = $("<textarea cols='65536'></textarea>").get(0);
+            txt.innerHTML = table.join("\n");
+            var frame = $(
+                "<iframe src='text/csv;charset=utf-8' style='display:none'></iframe>"
+            ).appendTo("body").get(0);
+            frame.contentWindow.document.open("text/csv;charset=utf-8",
+                "replace");
+            frame.contentWindow.document.write(txt.value);
+            frame.contentWindow.document.close();
+            frame.contentWindow.document.execCommand("SaveAs", true,
+                fileName);
+            setTimeout(function()
+            {
+                $(frame).remove();
+                $(txt).remove();
+            }, 50);
+        };
+
+        let draw = () =>
+        {
+            let config = {
+                title:
+                {
+                    text: 'Radio Telescope Plot and Data'
+                },
+                bindto: '#chart',
+                data:
+                {
+                    x: 'x',
+                    json: values,
+                    classes: values,
+                    keys:
+                    {
+                        value: ['y', 'x'],
+                    },
+                },
+                zoom:
+                {
+                    enabled: true
+                },
+		size: {
+		  height: 640
+		}
+            };
+
+            if (chart != null)
+            {
+                let len = values.length;
+                //console.log("drawing", values);
+                if (len % 50 == 0)
+                {
+                    chart.load(
+                    {
+                        json: values,
+                        classes: values,
+                        keys:
+                        {
+                            value: ['y', 'x'],
+                        }
+                    });
+                }
+                if (len % 500 == 0)
+                {
+                    chart.flush();
+                    data = [];
+                }
+
+
+            }
+            else
+            {
+                //console.log("start", values);
+                chart = c3.generate(config);
+            }
+
+        };
+        let onConnect = () =>
+        {
+            // Once a connection has been made, make a subscription and send a message.
+            console.log("onConnect");
+            client.subscribe("telescope");
+        };
+        // called when the client loses its connection
+        let onConnectionLost = (responseObject) =>
+        {
+            if (responseObject.errorCode !== 0)
+            {
+                console.log("onConnectionLost:" + responseObject.errorMessage);
+            }
+        };
+
+        // called when a message arrives
+        let onMessageArrived = (message) =>
+        {
+            var data = message.payloadString.slice(1, -1);
+            let payload = JSON.parse(data);
+            //console.log(payload);
+            values.push(payload);
+            draw();
+
+        };
+
+
+        let connect_m = () =>
+        {
+            client = new Paho.MQTT.Client("192.168.0.4", Number(1884),
+                "clientId");
+
+            // set callback handlers
+            client.onConnectionLost = onConnectionLost;
+            client.onMessageArrived = onMessageArrived;
+
+            // connect the client
+            client.connect(
+            {
+                onSuccess: onConnect
+            });
+
+
+            // called when the client connects
+        };
+        let  halt = () =>
+        {
+            if (chart != null)
+            {
+                chart.flush();
+                chart.unload(
+                {
+                    ids: ['y', 'x']
+                });
+                chart = chart.destroy();
+		chart = null;
+            }
+            client.disconnect();
+            client = null;
+            values = [];
+        };
+
+	let disconnect_m = () =>
+        {
+            if (chart != null)
+            {
+                chart.flush();
+            }
+	    client.unsubscribe("telescope");
+            client.disconnect();
+            client = null;
+            values = [];
+        };
+
+
+
+
+        let f_events = () =>
+        {
+            if (chart != null)
+                chart.unload(
+                {
+                    ids: ['y', 'x']
+                });
+        };
+    </script>
+    <button id="plot" onclick="connect_m()"> Plot </button>
+    <button id="stop" onclick="disconnect_m()"> Stop </button>
+    <button id="destroy" onclick="halt()"> Destroy </button>
+    <button id="save" onclick="datatocsv()"> Save </button>
+</body>
+
+</html>
